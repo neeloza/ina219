@@ -15,7 +15,7 @@
 int access_i2c_device(char flag_rw, unsigned char cmd,\
                                     int data_size, union i2c_smbus_data *i2c_data);
 int write_i2c_word_data(unsigned char cmd, uint16_t reg_value);
-int read_i2c_word_data(unsigned char cmd);
+uint16_t read_i2c_word_data(unsigned char cmd);
 int i2c_dev_open(char *i2c_bus, int addr);
 void i2c_dev_close(void);
 

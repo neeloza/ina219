@@ -35,18 +35,39 @@ int write_i2c_word_data(unsigned char cmd, uint16_t reg_value) {
     return status;
 }
 
-int read_i2c_word_data(unsigned char cmd) {
+uint16_t read_i2c_word_data(unsigned char cmd) {
 
     union i2c_smbus_data i2c_data;
     int status = 0;
+    unsigned char lsb, msb; 
 
-    status = access_i2c_device(I2C_SMBUS_READ, cmd, I2C_SMBUS_WORD_DATA, &i2c_data);
+    status = access_i2c_device(I2C_SMBUS_WRITE, cmd, I2C_SMBUS_BYTE, NULL);
+    if (status < 0) {
+	printf("Failed to write byte data on I2C status: %d\n", status);
+        return -1;
+    } 
+
+    status = access_i2c_device(I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &i2c_data);
     if (status < 0) {
         printf("Failed to read word data from I2C status: %d\n", status);
         return -1;
     } else {
-        return i2c_data.word;
+        lsb = i2c_data.byte;
     }
+
+    status = access_i2c_device(I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &i2c_data);
+    if (status < 0) {
+        printf("Failed to read word data from I2C status: %d\n", status);
+        return -1;
+    } else {
+        msb = i2c_data.byte;
+    }
+    
+
+    printf("LSB: %d\n", lsb);
+    printf("MSB: %d\n", msb);
+
+    return ((((uint16_t) msb) << 8) | ((uint16_t) lsb));
 }
 
 int i2c_dev_open(char *i2c_bus, int addr)
