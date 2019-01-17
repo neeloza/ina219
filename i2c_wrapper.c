@@ -22,7 +22,7 @@ int access_i2c_device(char flag_rw, unsigned char cmd,\
 }
 
 int write_i2c_word_data(unsigned char cmd, uint16_t reg_value) {
-
+#if 0
     union i2c_smbus_data i2c_data;
     int status = 0;
 
@@ -31,8 +31,21 @@ int write_i2c_word_data(unsigned char cmd, uint16_t reg_value) {
     if (status < 0) {
         printf("Failed to write word data on I2C status: %d\n", status);
     }
+ #else
+	uint16_t length = 0;
+	unsigned char buffer[8] = {0};
+	buffer[0] = cmd;
+	buffer[1] = (reg_value & 0xFF00) >> 8;
+	buffer[2] = (reg_value & 0x00FF);
+	//----- WRITE BYTES -----
+	length = 3;			//<<< Number of bytes to write
+	if (write(fd, buffer, length) != length) {
+		/* ERROR HANDLING: i2c transaction failed */
+		printf("Failed to write to the i2c bus.\n");
+	}
+#endif
 
-    return status;
+    return 0;
 }
 
 uint16_t read_i2c_word_data(unsigned char cmd) {
@@ -71,21 +84,28 @@ uint16_t read_i2c_word_data(unsigned char cmd) {
     return ((((uint16_t) msb) << 8) | ((uint16_t) lsb));
 }
 #else
-	uint16_t length = 0;
+	uint16_t length = 0, value = 0;
+	unsigned char buffer[8] = {0};
+	buffer[0] = cmd;
 	//----- WRITE BYTES -----
 	length = 1;			//<<< Number of bytes to write
-	if (write(fd, cmd, length) != length) {
+	if (write(fd, buffer, length) != length) {
 		/* ERROR HANDLING: i2c transaction failed */
 		printf("Failed to write to the i2c bus.\n");
 	}
+
+	usleep(800);
 
 	length = 2;
 	if (read(fd, buffer, length) != length) {
 		printf("Failed to read from the i2c bus.\n");
 	}
 	else {
-		printf("Data read: %s\n", buffer);
+		value = (((uint16_t) buffer[0]) << 8) | ((uint16_t) buffer[1]);
+		//printf("Data read: %d %d %d %x\n", buffer[1], buffer[0], value, value);
 	}
+	return value;
+}
 #endif
 
 int i2c_dev_open(char *i2c_bus, int addr)

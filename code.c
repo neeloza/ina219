@@ -197,15 +197,16 @@ int ina219_configure(ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t 
     config = 0x219f;
 #endif
 
-    printf("Configuration: %#x\n", config);
+    //printf("Configuration: %#x\n", config);
 
+#if 1
     if (write_i2c_word_data(INA219_REG_CONFIG, config) < 0) {
         return -1;
     }
-
+#endif
     int16_t value;
     value = read_i2c_word_data(INA219_REG_CONFIG);
-    printf("Return Configuration: %#x\n", value);
+    //printf("Return Configuration: %#x\n", value);
     return 0;
 }
 
@@ -234,17 +235,19 @@ int  ina219_calibrate(float r_shunt_value, float i_max_expected) {
 #if 0
     calibration_value = (uint16_t) ((0.04096) / (ina219_info.current_lsb * ina219_info.r_shunt));
 #else
-    calibration_value = 0x8333;
+    calibration_value = 0x8334;
 #endif
-    printf("calibration_value: %#x\n", calibration_value);
+    //printf("calibration_value: %#x, %d\n", calibration_value, calibration_value);
 
+#if 1
     if (write_i2c_word_data(INA219_REG_CALIBRATION, calibration_value) < 0) {
         return -1;
     }
+#endif
 
-    int16_t value;
+    uint16_t value;
     value = read_i2c_word_data(INA219_REG_CALIBRATION);
-    printf("Return calibration_value: %#x\n", value);
+    //printf("Return calibration_value: %#x %d\n", value, value);
 
     return 0;
 }
@@ -281,7 +284,7 @@ int main() {
         return -1;
     }
 
-    return 0;
+   // return 0;
 
     do {
         // Read Voltage
@@ -301,9 +304,9 @@ int main() {
         printf("Power: %.3f\n", value);
         value = 0.0;
 
-        sleep(5);
+        //sleep(5);
 
-    } while(1);
+    } while(0);
 
     i2c_dev_close();
 
