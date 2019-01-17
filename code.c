@@ -1,15 +1,12 @@
 //#include "./GeneratedCode/Application.h"
-#include <stdio.h>
 #include <dirent.h>
-#include <string.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <math.h>
 #include "common_i2c.h"
 
-#define INA219_I2C_DEFAULT_SLAVE_ADDRESS    0x40
+#define INA219_I2C_HEATER_ADDRESS   0x40
+#define INA219_I2C_PUMP_IN_ADDRESS  0x41
+#define INA219_I2C_PUMP_OUT_ADDRESS 0x42
 #define INA219_REG_CONFIG           0x00    ///<
 #define INA219_REG_SHUNTVOLTAGE     0x01    ///<
 #define INA219_REG_BUSVOLTAGE       0x02    ///<
@@ -116,11 +113,11 @@ void *current_sensor(void *x_void_ptr) {
 void current_overflow(void) {
 
     uint16_t voltage, config, gain;
-    voltage = read_i2c_word_data(INA219_REG_BUSVOLTAGE);
+    voltage = read_i2c_word_data(fd, INA219_REG_BUSVOLTAGE);
 
     // Overflow
     if (voltage & 1) {
-        config = read_i2c_word_data(INA219_REG_CONFIG);
+        config = read_i2c_word_data(fd, INA219_REG_CONFIG);
         gain = (config & 0x1800) >> 11;
 
         if (gain < 3) {
@@ -129,22 +126,22 @@ void current_overflow(void) {
     }
 }
 
-float ina219_get_bus_voltage(void) {
+float ina219_get_bus_voltage(int fd) {
 
     uint16_t voltage;
     int16_t value;
 
-    voltage = read_i2c_word_data(INA219_REG_BUSVOLTAGE);
+    voltage = read_i2c_word_data(fd, INA219_REG_BUSVOLTAGE);
     voltage >>= 3;
     value = ((int16_t) voltage * (int16_t) 4);
 
     return ((float) value * (float) 0.001);
 }
 
-float ina219_get_shunt_current(void) {
+float ina219_get_shunt_current(int fd) {
 
     int16_t value;
-    value = read_i2c_word_data(INA219_REG_CURRENT);
+    value = read_i2c_word_data(fd, INA219_REG_CURRENT);
 #if 0
     return ((float) (value * ina219_info.current_lsb));
 #else
@@ -152,10 +149,10 @@ float ina219_get_shunt_current(void) {
 #endif
 }
 
-float ina219_get_bus_power(void) {
+float ina219_get_bus_power(int fd) {
 
     int16_t value;
-    value = read_i2c_word_data(INA219_REG_POWER);
+    value = read_i2c_word_data(fd, INA219_REG_POWER);
 #if 0
     return ((float)(value * ina219_info.power_lsb));
 #else
@@ -205,7 +202,7 @@ int ina219_configure(ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t 
     }
 #endif
     int16_t value;
-    value = read_i2c_word_data(INA219_REG_CONFIG);
+    value = read_i2c_word_data(fd, INA219_REG_CONFIG);
     //printf("Return Configuration: %#x\n", value);
     return 0;
 }
@@ -246,69 +243,81 @@ int  ina219_calibrate(float r_shunt_value, float i_max_expected) {
 #endif
 
     uint16_t value;
-    value = read_i2c_word_data(INA219_REG_CALIBRATION);
+    value = read_i2c_word_data(fd, INA219_REG_CALIBRATION);
     //printf("Return calibration_value: %#x %d\n", value, value);
 
     return 0;
 }
 
-int ina219_start(void) {
+int ina219_start(int address) {
 
-    if (i2c_dev_open(devName, INA219_I2C_DEFAULT_SLAVE_ADDRESS) < 0) {
-        printf("Fail to initialize INA219 device at address: %x\n", INA219_I2C_DEFAULT_SLAVE_ADDRESS);
+    // Initialize I2C slave device
+    if (i2c_dev_open(devName, address) < 0) {
+        printf("Fail to initialize INA219 device at address: %x\n", address);
         return -1;
     }
 
+    // Calibration I2C slave device
     if (ina219_calibrate(0.1, 2) < 0) {
         printf("Fail to calibrate INA219 device\n");
         return -1;
     }
 
+    // Configure I2C slave device
     if (ina219_configure(INA219_RANGE_32V, INA219_GAIN_320MV,\
                     INA219_BUS_RES_12BIT, INA219_SHUNT_RES_12BIT_1S , INA219_MODE_SHUNT_BUS_CONT) < 0) {
         printf("Fail to configure INA219 device\n");
         return -1;
     }
 
-
     return 0;
 }
 
+int read_sensor_data(int i2c_slave_address) {
 
-int main() {
+    unsigned int fd = -1, index = 0;
+    float value= 0.0, current = 0.0, voltage = 0.0, power = 0.0;
 
-    unsigned int i=0;
-    float value = 0.0;
-
-    if (ina219_start() < 0) {
+    // Initialize Sensor
+    if (ina219_start(i2c_slave_address) < 0) {
         return -1;
     }
 
-   // return 0;
+    // Read Voltage
+    voltage = ina219_get_bus_voltage(fd);
+
+    // Read Current
+    for (index=0; index<5; index++) {
+        value += ina219_get_shunt_current(fd);
+    }
+    current = value/(float)5;
+
+    // Read Power
+    power = ina219_get_bus_power(fd);
+
+    peintf("Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", voltage, cuurent, power);
+
+    // DeInitialize Sensor
+    i2c_dev_close(fd);
+}
+
+int main() {
 
     do {
-        // Read Voltage
-        value = ina219_get_bus_voltage();
-        printf("Voltage: %.3f\n", value);
-        value = 0.0;
 
-        // Read Current
-        for (i=0; i<5; i++) {
-            value += ina219_get_shunt_current();
-        }
-        printf("Current: %.3f\n", value/(float)5);
-        value = 0.0;
+        // Read Heater
+        read_sensor_data(INA219_I2C_HEATER_ADDRESS);
+        sleep(1);
 
-        // Read Current
-        value = ina219_get_bus_power();
-        printf("Power: %.3f\n", value);
-        value = 0.0;
+        // Read Pump In
+        read_sensor_data(INA219_I2C_PUMP_IN_ADDRESS);
+        sleep(1);
 
-        //sleep(5);
+        // Read Pump Out
+        read_sensor_data(INA219_I2C_PUMP_OUT_ADDRESS);
+        sleep(10);
 
-    } while(0);
-
-    i2c_dev_close();
+    } while(1);
 
     return -1;
 }
