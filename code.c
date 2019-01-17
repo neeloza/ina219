@@ -160,7 +160,7 @@ float ina219_get_bus_power(int fd) {
 #endif
 }
 
-int ina219_configure(ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t bus_res,\
+int ina219_configure(int fd, ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t bus_res,\
         ina219_shunt_res_t shunt_res, ina219_mode_t mode)
 {
     uint16_t config = range | gain| bus_res | shunt_res | mode;
@@ -196,18 +196,19 @@ int ina219_configure(ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t 
 
     //printf("Configuration: %#x\n", config);
 
-#if 1
-    if (write_i2c_word_data(INA219_REG_CONFIG, config) < 0) {
+    if (write_i2c_word_data(fd, INA219_REG_CONFIG, config) < 0) {
         return -1;
     }
-#endif
+
+    /*
     int16_t value;
     value = read_i2c_word_data(fd, INA219_REG_CONFIG);
-    //printf("Return Configuration: %#x\n", value);
+    printf("Return Configuration: %#x\n", value);
+    */
     return 0;
 }
 
-int  ina219_calibrate(float r_shunt_value, float i_max_expected) {
+int ina219_calibrate(int fd, float r_shunt_value, float i_max_expected) {
     //const float minimum_lsb = i_max_expected / 32767;
 
     uint16_t calibration_value;
@@ -237,34 +238,35 @@ int  ina219_calibrate(float r_shunt_value, float i_max_expected) {
     //printf("calibration_value: %#x, %d\n", calibration_value, calibration_value);
 
 #if 1
-    if (write_i2c_word_data(INA219_REG_CALIBRATION, calibration_value) < 0) {
+    if (write_i2c_word_data(fd, INA219_REG_CALIBRATION, calibration_value) < 0) {
         return -1;
     }
 #endif
 
+#if 0
     uint16_t value;
     value = read_i2c_word_data(fd, INA219_REG_CALIBRATION);
-    //printf("Return calibration_value: %#x %d\n", value, value);
-
+    printf("Return calibration_value: %#x %d\n", value, value);
+#endif
     return 0;
 }
 
-int ina219_start(int address) {
+int ina219_start(int fd, int address) {
 
     // Initialize I2C slave device
-    if (i2c_dev_open(devName, address) < 0) {
+    if (i2c_dev_open(fd, devName, address) < 0) {
         printf("Fail to initialize INA219 device at address: %x\n", address);
         return -1;
     }
 
     // Calibration I2C slave device
-    if (ina219_calibrate(0.1, 2) < 0) {
+    if (ina219_calibrate(fd, 0.1, 2) < 0) {
         printf("Fail to calibrate INA219 device\n");
         return -1;
     }
 
     // Configure I2C slave device
-    if (ina219_configure(INA219_RANGE_32V, INA219_GAIN_320MV,\
+    if (ina219_configure(fd, INA219_RANGE_32V, INA219_GAIN_320MV,\
                     INA219_BUS_RES_12BIT, INA219_SHUNT_RES_12BIT_1S , INA219_MODE_SHUNT_BUS_CONT) < 0) {
         printf("Fail to configure INA219 device\n");
         return -1;
@@ -273,14 +275,14 @@ int ina219_start(int address) {
     return 0;
 }
 
-int read_sensor_data(int i2c_slave_address) {
+void read_sensor_data(int i2c_slave_address) {
 
     unsigned int fd = -1, index = 0;
     float value= 0.0, current = 0.0, voltage = 0.0, power = 0.0;
 
     // Initialize Sensor
-    if (ina219_start(i2c_slave_address) < 0) {
-        return -1;
+    if (ina219_start(fd, i2c_slave_address) < 0) {
+        return;
     }
 
     // Read Voltage
@@ -295,7 +297,7 @@ int read_sensor_data(int i2c_slave_address) {
     // Read Power
     power = ina219_get_bus_power(fd);
 
-    peintf("Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", voltage, cuurent, power);
+    printf("Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", voltage, current, power);
 
     // DeInitialize Sensor
     i2c_dev_close(fd);
