@@ -19,7 +19,7 @@
  **********************************************/
 #define INA219_I2C_HEATER_ADDRESS   0x40
 #define INA219_I2C_PUMP_IN_ADDRESS  0x41
-#define INA219_I2C_PUMP_OUT_ADDRESS 0x42
+#define INA219_I2C_PUMP_OUT_ADDRESS 0x44
 #define INA219_REG_CONFIG           0x00    ///<
 #define INA219_REG_SHUNTVOLTAGE     0x01    ///<
 #define INA219_REG_BUSVOLTAGE       0x02    ///<
@@ -237,7 +237,7 @@ void read_sensor_data(int i2c_slave_address) {
     // Read Power
     power = ina219_get_bus_power(fd);
 
-    printf("Address: %d, Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", i2c_slave_address, voltage, current, power);
+    printf("Address: %#x: Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", i2c_slave_address, voltage, current, power);
 
     // DeInitialize Sensor
     i2c_dev_close(fd);
