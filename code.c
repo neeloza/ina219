@@ -1,9 +1,22 @@
+/***********************************************/
+/* @file   code.c
+ *
+ * @brief  Main source file of this project
+ */
+/***********************************************/
+
+/***********************************************
+ *                Header Files
+ **********************************************/
 //#include "./GeneratedCode/Application.h"
 #include <dirent.h>
 #include <pthread.h>
 #include <math.h>
 #include "common_i2c.h"
 
+/***********************************************
+ *                Macros
+ **********************************************/
 #define INA219_I2C_HEATER_ADDRESS   0x40
 #define INA219_I2C_PUMP_IN_ADDRESS  0x41
 #define INA219_I2C_PUMP_OUT_ADDRESS 0x42
@@ -13,8 +26,13 @@
 #define INA219_REG_POWER            0x03    ///<
 #define INA219_REG_CURRENT          0x04    ///<
 #define INA219_REG_CALIBRATION      0x05    ///<
-
 #define CEILING_POS(X) ((X-(int)(X)) > 0 ? (int)(X+1) : (int)(X))
+#define NUMBER_OF_GAIN_RANGE 4
+
+
+/**********************************************
+ *             Enumerations
+ **********************************************/
 
 typedef enum ina219_range {
     INA219_RANGE_16V = 0x0000,  ///< 0-16V Range
@@ -60,6 +78,9 @@ typedef enum ina219_mode {
     INA219_MODE_SHUNT_BUS_CONT = 0x0007     ///<
 } ina219_mode_t;
 
+/***********************************************
+ *          Structure Declaration
+ **********************************************/
 typedef struct __ina219_info {
     float current_lsb;
     float power_lsb;
@@ -68,10 +89,32 @@ typedef struct __ina219_info {
     float r_shunt;
 } Ina219_info;
 
+/***********************************************
+ *             Global Variables
+ ***********************************************/
 Ina219_info ina219_info;
 char *devName = "/dev/i2c-1";
 int fd;
+float gain_range[NUMBER_OF_GAIN_RANGE] = {0.04, 0.08, 0.16, 0.32};
 
+/***********************************************
+ *          Function Declaration
+ **********************************************/
+int ina219_calibrate(int fd, float r_shunt_value, float i_max_expected);
+void *current_sensor(void *x_void_ptr);
+void current_overflow(void);
+float ina219_get_bus_voltage(int fd);
+float ina219_get_shunt_current(int fd);
+float ina219_get_bus_power(int fd);
+int ina219_configure(int fd, ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t bus_res,\
+              ina219_shunt_res_t shunt_res, ina219_mode_t mode);
+int ina219_start(int fd, int address);
+void read_sensor_data(int i2c_slave_address);
+
+
+/***********************************************
+ *             Function Defination
+ **********************************************/
 void *current_sensor(void *x_void_ptr) {
 	char buffer[100];
 
@@ -120,9 +163,17 @@ void current_overflow(void) {
         config = read_i2c_word_data(fd, INA219_REG_CONFIG);
         gain = (config & 0x1800) >> 11;
 
-        if (gain < 3) {
-            gain = gain + 1;
-        }
+       if (gain < (NUMBER_OF_GAIN_RANGE - 1)) {
+          gain = gain + 1;
+
+          /* Write gain voltage value on calibrate register */
+          ina219_calibrate(fd, gain_range[gain], 2);
+          config = config & 0xE7FF;
+
+          /* Write gain voltage value on configuration register */
+          write_i2c_word_data(fd, INA219_REG_CONFIG, config | (gain << 11));
+          printf("gain set to: %.2fV", gain_range[gain]);
+       }
     }
 }
 
