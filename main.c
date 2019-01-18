@@ -26,57 +26,11 @@
 #define INA219_REG_POWER            0x03    ///<
 #define INA219_REG_CURRENT          0x04    ///<
 #define INA219_REG_CALIBRATION      0x05    ///<
-#define CEILING_POS(X) ((X-(int)(X)) > 0 ? (int)(X+1) : (int)(X))
-#define NUMBER_OF_GAIN_RANGE 4
-
-
-/**********************************************
- *             Enumerations
- **********************************************/
-
-typedef enum ina219_range {
-    INA219_RANGE_16V = 0x0000,  ///< 0-16V Range
-    INA219_RANGE_32V = 0x2000,  ///< 0-32V Range
-} ina219_range_t;
-
-typedef enum ina219_gain {
-    INA219_GAIN_40MV  = 0x0000, ///< Gain 1, 40mV Range
-    INA219_GAIN_80MV  = 0x0800, ///< Gain 2, 80mV Range
-    INA219_GAIN_160MV = 0x1000, ///< Gain 4, 160mV Range
-    INA219_GAIN_320MV = 0x1800  ///< Gain 8, 320mV Range
-} ina219_gain_t;
-
-typedef enum ina219_bus_res {
-    INA219_BUS_RES_9BIT  = 0x0080,  ///< 9-bit bus res = 0..511
-    INA219_BUS_RES_10BIT = 0x0100,  ///< 10-bit bus res = 0..1023
-    INA219_BUS_RES_11BIT = 0x0200,  ///< 11-bit bus res = 0..2047
-    INA219_BUS_RES_12BIT = 0x0400   ///< 12-bit bus res = 0..4097
-} ina219_bus_res_t;
-
-typedef enum ina219_shunt_res {
-    INA219_SHUNT_RES_9BIT_1S    = 0x0000,   ///< 1 x 9-bit shunt sample
-    INA219_SHUNT_RES_10BIT_1S   = 0x0008,   ///< 1 x 10-bit shunt sample
-    INA219_SHUNT_RES_11BIT_1S   = 0x0010,   ///< 1 x 11-bit shunt sample
-    INA219_SHUNT_RES_12BIT_1S   = 0x0018,   ///< 1 x 12-bit shunt sample
-    INA219_SHUNT_RES_12BIT_2S   = 0x0048,   ///< 2 x 12-bit shunt samples averaged together
-    INA219_SHUNT_RES_12BIT_4S   = 0x0050,   ///< 4 x 12-bit shunt samples averaged together
-    INA219_SHUNT_RES_12BIT_8S   = 0x0058,   ///< 8 x 12-bit shunt samples averaged together
-    INA219_SHUNT_RES_12BIT_16S  = 0x0060,   ///< 16 x 12-bit shunt samples averaged together
-    INA219_SHUNT_RES_12BIT_32S  = 0x0068,   ///< 32 x 12-bit shunt samples averaged together
-    INA219_SHUNT_RES_12BIT_64S  = 0x0070,   ///< 64 x 12-bit shunt samples averaged together
-    INA219_SHUNT_RES_12BIT_128S = 0x0078    ///< 128 x 12-bit shunt samples averaged together
-} ina219_shunt_res_t;
-
-typedef enum ina219_mode {
-    INA219_MODE_POWER_DOWN     = 0x0000,    ///<
-    INA219_MODE_SHUNT_TRIG     = 0x0001,    ///<
-    INA219_MODE_BUS_TRIG       = 0x0002,    ///<
-    INA219_MODE_SHUNT_BUS_TRIG = 0x0003,    ///<
-    INA219_MODE_ADC_OFF        = 0x0004,    ///<
-    INA219_MODE_SHUNT_CONT     = 0x0005,    ///<
-    INA219_MODE_BUS_CONT       = 0x0006,    ///<
-    INA219_MODE_SHUNT_BUS_CONT = 0x0007     ///<
-} ina219_mode_t;
+#define INA219_SHUNT_VALUE          0.01
+#define INA219_CURRENT_LSB_VALUE    0.000012
+#define INA219_CALIBRATION_VALUE    0x8334
+#define INA219_CONFIGURATION_VALUE  0x219f
+#define NUMBER_OF_GAIN_RANGE        4
 
 /***********************************************
  *          Structure Declaration
@@ -92,24 +46,22 @@ typedef struct __ina219_info {
 /***********************************************
  *             Global Variables
  ***********************************************/
-Ina219_info ina219_info;
-char *devName = "/dev/i2c-1";
 float gain_range[NUMBER_OF_GAIN_RANGE] = {0.04, 0.08, 0.16, 0.32};
+char *devName = "/dev/i2c-1";
+Ina219_info ina219_info;
 
 /***********************************************
  *          Function Declaration
  **********************************************/
-int ina219_calibrate(int fd, float r_shunt_value, float i_max_expected);
-void *current_sensor(void *x_void_ptr);
-void current_overflow(int fd);
+int   ina219_calibrate(int fd, float r_shunt_value);
+void  *current_sensor(void *x_void_ptr);
+void  check_current_overflow(int fd);
 float ina219_get_bus_voltage(int fd);
 float ina219_get_shunt_current(int fd);
 float ina219_get_bus_power(int fd);
-int ina219_configure(int fd, ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t bus_res,\
-              ina219_shunt_res_t shunt_res, ina219_mode_t mode);
-int ina219_start(int *fd, int address);
-void read_sensor_data(int i2c_slave_address);
-
+int   ina219_configure(int fd);
+int   ina219_start(int *fd, int address);
+void  read_sensor_data(int i2c_slave_address);
 
 /***********************************************
  *             Function Defination
@@ -152,7 +104,7 @@ void *current_sensor(void *x_void_ptr) {
 
 }
 
-void current_overflow(int fd) {
+void check_current_overflow(int fd) {
 
     uint16_t voltage, config, gain;
     voltage = read_i2c_word_data(fd, INA219_REG_BUSVOLTAGE);
@@ -165,11 +117,11 @@ void current_overflow(int fd) {
        if (gain < (NUMBER_OF_GAIN_RANGE - 1)) {
           gain = gain + 1;
 
-          /* Write gain voltage value on calibrate register */
-          ina219_calibrate(fd, gain_range[gain], 2);
-          config = config & 0xE7FF;
+          // Write gain voltage value on calibrate register
+          ina219_calibrate(fd, INA219_SHUNT_VALUE);
 
-          /* Write gain voltage value on configuration register */
+          // Write gain voltage value on configuration register
+          config = config & 0xE7FF;
           write_i2c_word_data(fd, INA219_REG_CONFIG, config | (gain << 11));
           printf("gain set to: %.2fV", gain_range[gain]);
        }
@@ -191,113 +143,52 @@ float ina219_get_bus_voltage(int fd) {
 float ina219_get_shunt_current(int fd) {
 
     int16_t value;
+
+    check_current_overflow(fd);
     value = read_i2c_word_data(fd, INA219_REG_CURRENT);
-#if 0
-    return ((float) (value * ina219_info.current_lsb));
-#else
     return ((float) (value * ina219_info.current_lsb * 1000));
-#endif
 }
 
 float ina219_get_bus_power(int fd) {
 
     int16_t value;
+
+    check_current_overflow(fd);
     value = read_i2c_word_data(fd, INA219_REG_POWER);
-#if 0
-    return ((float)(value * ina219_info.power_lsb));
-#else
     return ((float)(value * ina219_info.power_lsb * 1000));
-#endif
 }
 
-int ina219_configure(int fd, ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t bus_res,\
-        ina219_shunt_res_t shunt_res, ina219_mode_t mode)
+int ina219_configure(int fd)
 {
-    uint16_t config = range | gain| bus_res | shunt_res | mode;
+    // Configuration Value = voltage range << 13 | gain << 11 | bus adc << 7 | shunt adc << 3 | 7
+    uint16_t config = INA219_CONFIGURATION_VALUE;
 
-    switch (range) {
-        case INA219_RANGE_32V:
-            ina219_info.v_bus_max = (float) 32.0;
-            break;
-        case INA219_RANGE_16V:
-            ina219_info.v_bus_max = (float) 16.0;
-            break;
-    }
-
-    switch(gain)
-    {
-        case INA219_GAIN_320MV:
-            ina219_info.v_shunt_max = (float) 0.32;
-            break;
-        case INA219_GAIN_160MV:
-            ina219_info.v_shunt_max = (float) 0.16;
-            break;
-        case INA219_GAIN_80MV:
-            ina219_info.v_shunt_max = (float) 0.08;
-            break;
-        case INA219_GAIN_40MV:
-            ina219_info.v_shunt_max = (float) 0.04;
-            break;
-    }
-
-#if 1
-    config = 0x219f;
-#endif
-
-    //printf("Configuration: %#x\n", config);
-
+    // Write sensor configuration value
     if (write_i2c_word_data(fd, INA219_REG_CONFIG, config) < 0) {
         return -1;
     }
 
-    /*
-    int16_t value;
-    value = read_i2c_word_data(fd, INA219_REG_CONFIG);
-    printf("Return Configuration: %#x\n", value);
-    */
     return 0;
 }
 
-int ina219_calibrate(int fd, float r_shunt_value, float i_max_expected) {
-    //const float minimum_lsb = i_max_expected / 32767;
+int ina219_calibrate(int fd, float r_shunt_value) {
 
     uint16_t calibration_value;
 
-    ina219_info.r_shunt = r_shunt_value;
+    ina219_info.r_shunt     = r_shunt_value;
+    // Max Possible Amps = Shunt Volts Max(21) / r_shunt_value
+    // current_lsb = Max Possible Amps / Current_LSB_Factor(32800)
+    ina219_info.current_lsb = INA219_CURRENT_LSB_VALUE;
+    // Power LSB = Current LSB * 20
+    ina219_info.power_lsb   = ina219_info.current_lsb * 20;
+    // trunc(CALIBRATION_FACTOR(0.04096) / (current_lsb * r_shunt_value))
+    calibration_value       = INA219_CALIBRATION_VALUE;
 
-#if 0
-    ina219_info.current_lsb = (float) ((uint16_t) (minimum_lsb * 100000000));
-    ina219_info.current_lsb /= 100000000;
-    ina219_info.current_lsb /= 0.0001;
-    ina219_info.current_lsb = (float) CEILING_POS(ina219_info.current_lsb);
-    ina219_info.current_lsb *= 0.0001;
-#else
-    ina219_info.current_lsb = 0.000012;
-#endif
-
-    printf("current_lsb: %f\n", ina219_info.current_lsb);
-
-    ina219_info.power_lsb = ina219_info.current_lsb * 20;
-    printf("power_lsb: %f\n", ina219_info.power_lsb);
-
-#if 0
-    calibration_value = (uint16_t) ((0.04096) / (ina219_info.current_lsb * ina219_info.r_shunt));
-#else
-    calibration_value = 0x8334;
-#endif
-    //printf("calibration_value: %#x, %d\n", calibration_value, calibration_value);
-
-#if 1
+    // Write sensor calibration Value
     if (write_i2c_word_data(fd, INA219_REG_CALIBRATION, calibration_value) < 0) {
         return -1;
     }
-#endif
 
-#if 0
-    uint16_t value;
-    value = read_i2c_word_data(fd, INA219_REG_CALIBRATION);
-    printf("Return calibration_value: %#x %d\n", value, value);
-#endif
     return 0;
 }
 
@@ -310,14 +201,13 @@ int ina219_start(int *fd, int address) {
     }
 
     // Calibration I2C slave device
-    if (ina219_calibrate(*fd, 0.1, 2) < 0) {
+    if (ina219_calibrate(*fd, INA219_SHUNT_VALUE) < 0) {
         printf("Fail to calibrate INA219 device\n");
         return -1;
     }
 
     // Configure I2C slave device
-    if (ina219_configure(*fd, INA219_RANGE_32V, INA219_GAIN_320MV,\
-                    INA219_BUS_RES_12BIT, INA219_SHUNT_RES_12BIT_1S , INA219_MODE_SHUNT_BUS_CONT) < 0) {
+    if (ina219_configure(*fd) < 0) {
         printf("Fail to configure INA219 device\n");
         return -1;
     }
@@ -347,13 +237,13 @@ void read_sensor_data(int i2c_slave_address) {
     // Read Power
     power = ina219_get_bus_power(fd);
 
-    printf("Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", voltage, current, power);
+    printf("Address: %d, Voltage: %.3lf, Current: %.3lf, Power: %.3lf\n", i2c_slave_address, voltage, current, power);
 
     // DeInitialize Sensor
     i2c_dev_close(fd);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 
     do {
 

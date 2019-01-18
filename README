@@ -1,0 +1,6 @@
+To compile programme & create binary file,
+    -> make
+To remove binary file,
+    -> make clean
+To run application,
+    -> ./INA219
