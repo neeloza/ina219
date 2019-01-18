@@ -94,7 +94,6 @@ typedef struct __ina219_info {
  ***********************************************/
 Ina219_info ina219_info;
 char *devName = "/dev/i2c-1";
-int fd;
 float gain_range[NUMBER_OF_GAIN_RANGE] = {0.04, 0.08, 0.16, 0.32};
 
 /***********************************************
@@ -102,13 +101,13 @@ float gain_range[NUMBER_OF_GAIN_RANGE] = {0.04, 0.08, 0.16, 0.32};
  **********************************************/
 int ina219_calibrate(int fd, float r_shunt_value, float i_max_expected);
 void *current_sensor(void *x_void_ptr);
-void current_overflow(void);
+void current_overflow(int fd);
 float ina219_get_bus_voltage(int fd);
 float ina219_get_shunt_current(int fd);
 float ina219_get_bus_power(int fd);
 int ina219_configure(int fd, ina219_range_t range, ina219_gain_t gain, ina219_bus_res_t bus_res,\
               ina219_shunt_res_t shunt_res, ina219_mode_t mode);
-int ina219_start(int fd, int address);
+int ina219_start(int *fd, int address);
 void read_sensor_data(int i2c_slave_address);
 
 
@@ -153,7 +152,7 @@ void *current_sensor(void *x_void_ptr) {
 
 }
 
-void current_overflow(void) {
+void current_overflow(int fd) {
 
     uint16_t voltage, config, gain;
     voltage = read_i2c_word_data(fd, INA219_REG_BUSVOLTAGE);
@@ -302,7 +301,7 @@ int ina219_calibrate(int fd, float r_shunt_value, float i_max_expected) {
     return 0;
 }
 
-int ina219_start(int fd, int address) {
+int ina219_start(int *fd, int address) {
 
     // Initialize I2C slave device
     if (i2c_dev_open(fd, devName, address) < 0) {
@@ -311,13 +310,13 @@ int ina219_start(int fd, int address) {
     }
 
     // Calibration I2C slave device
-    if (ina219_calibrate(fd, 0.1, 2) < 0) {
+    if (ina219_calibrate(*fd, 0.1, 2) < 0) {
         printf("Fail to calibrate INA219 device\n");
         return -1;
     }
 
     // Configure I2C slave device
-    if (ina219_configure(fd, INA219_RANGE_32V, INA219_GAIN_320MV,\
+    if (ina219_configure(*fd, INA219_RANGE_32V, INA219_GAIN_320MV,\
                     INA219_BUS_RES_12BIT, INA219_SHUNT_RES_12BIT_1S , INA219_MODE_SHUNT_BUS_CONT) < 0) {
         printf("Fail to configure INA219 device\n");
         return -1;
@@ -332,7 +331,7 @@ void read_sensor_data(int i2c_slave_address) {
     float value= 0.0, current = 0.0, voltage = 0.0, power = 0.0;
 
     // Initialize Sensor
-    if (ina219_start(fd, i2c_slave_address) < 0) {
+    if (ina219_start(&fd, i2c_slave_address) < 0) {
         return;
     }
 

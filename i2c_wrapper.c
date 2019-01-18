@@ -56,17 +56,17 @@ uint16_t read_i2c_word_data(int fd, unsigned char cmd) {
     return value;
 }
 
-int i2c_dev_open(int fd, char *i2c_bus, int addr) {
+int i2c_dev_open(int *fd, char *i2c_bus, int addr) {
 
     // Open I2C bus
-    fd = open(i2c_bus, O_RDWR);
-    if (fd < 0) {
+    *fd = open(i2c_bus, O_RDWR);
+    if (*fd < 0) {
         printf("Failed to open i2c device, I2C Bus : %s Device Address: %x\n", i2c_bus, addr);
         return -1;
     }
 
     // Set working device
-    if (ioctl(fd, I2C_SLAVE, addr) < 0) {
+    if (ioctl(*fd, I2C_SLAVE, addr) < 0) {
         printf("Failed to set i2c device as slave, I2C Bus : %s Device Address: %x\n", i2c_bus, addr);
         return -1;
     }
