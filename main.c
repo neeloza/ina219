@@ -12,7 +12,7 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <math.h>
-#include "common_i2c.h"
+#include "i2c_wrapper.h"
 
 /***********************************************
  *                Macros
